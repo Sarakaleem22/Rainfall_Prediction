@@ -1,0 +1,364 @@
+---
+title: "Austin-WeatherAssignment"
+author: "Sara-Kaleem"
+date: "03/05/2021"
+output: html_document
+---
+
+#Reading the datafile into R
+```{r}
+library(dplyr)
+library(DataExplorer)
+Austin <- read.csv("austin_weather.csv")
+View(Austin)
+plot_str(Austin)
+config <- configure_report(
+  global_ggtheme = quote(theme_minimal(base_size = 14))
+)
+create_report(Austin, y= "Events", config = config)
+```
+
+#The irrelevant columns needs to be dropped 
+```{r}
+df <- Austin[-c(1,11,13,21) ]
+```
+
+#Checking the structure of data
+```{r}
+str(df)
+```
+
+#replacing special characters or letters with 0
+```{r}
+df[df=="-"] <- 0
+df$PrecipitationSumInches[df$PrecipitationSumInches == 'T'] <- 0
+```
+
+
+#By seeing the structure we see that many columns are stored as chr which needs to be changed to int type
+```{r}
+df$DewPointHighF <- as.double(df$DewPointHighF)
+df$DewPointAvgF <- as.double(df$DewPointAvgF)
+df$DewPointLowF <- as.double(df$DewPointLowF)
+df$HumidityHighPercent <- as.double(df$HumidityHighPercent)
+df$HumidityAvgPercent <- as.double(df$HumidityAvgPercent)
+df$HumidityLowPercent <- as.double(df$HumidityLowPercent)
+df$SeaLevelPressureAvgInches <- as.double(df$SeaLevelPressureAvgInches)
+df$VisibilityHighMiles <- as.double(df$VisibilityHighMiles)
+df$VisibilityAvgMiles <- as.double(df$VisibilityAvgMiles)
+df$VisibilityLowMiles <- as.double(df$VisibilityLowMiles)
+df$WindHighMPH <- as.double(df$WindHighMPH)
+df$WindAvgMPH <- as.double(df$WindAvgMPH)
+df$WindGustMPH <- as.double(df$WindGustMPH)
+df$PrecipitationSumInches <- as.double(df$PrecipitationSumInches)
+str(df)
+```
+
+#Checking the summary and missing values of the dataset
+```{r}
+summary(df)
+sum(is.na(df))
+```
+
+CORRELATION HEATMAP
+```{r}
+install.packages('reshape2')
+library(reshape2)
+melted_ds <- melt(df)
+head(melted_ds)
+
+library(ggplot2)
+
+ggplot(data = melted_ds, aes(x=var1, y=var2, fill=value)) + 
+  geom_tile(color = "white" )+
+scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 90, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+```
+
+DATA EXPLORATION
+```{r}
+#install.packages('DataExplorer')
+library(DataExplorer)
+plot_str(df)
+plot_missing(df)
+plot_histogram(df)
+plot_density(df)
+```
+
+Packages for Feature Selection
+```{r}
+#install.packages('Boruta')
+#install.packages('mlbench')
+#install.packages('caret')
+#install.packages('randomForest')
+#install.packages('e1071')
+library(e1071)
+#install.packages('caTools')
+library(caTools)
+library(Boruta)
+library(mlbench)
+library(caret)
+library(randomForest)
+```
+
+FEATURE SELECTION
+```{r}
+set.seed(111)
+boruta <- Boruta(PrecipitationSumInches ~ ., data = df, doTrace = 2)
+print(boruta)
+plot(boruta , las=2, cex.axis=0.5)
+
+#TENTATIVE FIX
+bor <- TentativeRoughFix(boruta)
+print(bor)
+attStats(boruta)
+getSelectedAttributes(boruta , withTentative = TRUE)
+```
+
+DATA PARTITION
+```{r}
+set.seed(222)
+DT <- sample(2, nrow(df), replace = T, prob = c(0.7 , 0.3))
+train <- df[DT == 1,]
+test <- df[DT == 2,]
+```
+
+
+DECISION TREE - EXPERIMENT 1
+```{r}
+library(rpart)
+set.seed(333)
+fit1 <- rpart(PrecipitationSumInches ~ ., 
+             method = "anova", data = train)
+#Plotting DT
+plot(fit1, uniform = TRUE,
+          main = "Precipitation Decision Tree")
+text(fit1, use.n = TRUE, cex = .9)
+  
+print(fit1)
+
+```
+
+USING THE RPART.PLOT PACKAGE
+```{r}
+#install.packages('rpart.plot')
+library(rpart.plot)
+rpart.plot(fit1)
+plotcp(fit1)
+printcp(fit1)
+```
+
+Calculating the RMSE and MAE
+```{r}
+library(caret)
+p <- predict(fit1, test)
+RMSE(p, test$PrecipitationSumInches)
+q <- predict (fit1 , train)
+RMSE(q, train$PrecipitationSumInches)
+
+```
+
+
+DECISION TREE WITH DIFFERENT SPLIT RATIO - EXPERIMENT 2
+```{r}
+set.seed(224)
+DT1 <- sample(2, nrow(df), replace = T, prob = c(0.8 , 0.2))
+trainDT <- df[DT1 == 1,]
+testDT <- df[DT1 == 2,]
+set.seed(322)
+fit3 <- rpart(PrecipitationSumInches ~ ., 
+             method = "anova", data = trainDT)
+print(fit3)
+rpart.plot(fit3)
+plotcp(fit3)
+pred_DT <- predict(fit3, testDT)
+RMSE(pred_DT, testDT$PrecipitationSumInches)
+pred_DT1 <- predict (fit3 , trainDT)
+RMSE(pred_DT1, trainDT$PrecipitationSumInches)
+
+```
+
+
+SUPPORT VECTOR REGRESSION using RBF KERNEL - EXPERIMENT 1
+```{r}
+library(caTools)
+set.seed(123)
+split = sample.split(df$PrecipitationSumInches, SplitRatio = 0.7)
+training_set = subset(df, split == TRUE)
+test_set = subset(df, split == FALSE)
+
+
+# ~~~~~~~~~~~~~~~~~~~~  Default SVM Model using the RBF kernel ~~~~~~~~~~~~~~~~~~~~~
+library(e1071)
+svm_rbf <- svm(PrecipitationSumInches~., data = training_set)
+summary(svm_rbf)
+
+pred = predict (svm_rbf, test_set)
+pred
+pred1 = predict (svm_rbf , training_set)
+library(caret)
+summary(pred)
+RMSE(pred, test_set$PrecipitationSumInches) # Root mean squared error
+MAE(pred, test_set$PrecipitationSumInches)
+
+RMSE(pred1, training_set$PrecipitationSumInches) # Root mean squared error
+
+```
+
+
+SUPPORT VECTOR REGRESSION USING FEATURE SELECTION - EXPERIMENT 2
+```{r}
+set.seed(121)
+split = sample.split(df$PrecipitationSumInches, SplitRatio = 0.7)
+training_set2 = subset(df, split == TRUE)
+test_set2 = subset(df, split == FALSE)
+
+
+# ~~~~~~~~~~~~~~~~~~~~  Default SVM Model using the RBF kernel ~~~~~~~~~~~~~~~~~~~~~
+library(e1071)
+svm_rbf1 <- svm(PrecipitationSumInches~ TempHighF +  TempAvgF +  TempLowF +             DewPointHighF + DewPointAvgF + DewPointLowF +             HumidityAvgPercent + HumidityLowPercent +       SeaLevelPressureAvgInches + VisibilityAvgMiles +      VisibilityLowMiles + WindHighMPH + WindAvgMPH +                WindGustMPH , data = training_set2)
+summary(svm_rbf1)
+
+pred_svm = predict (svm_rbf1, test_set2)
+pred_svm
+pred1_svm = predict (svm_rbf1 , training_set2)
+library(caret)
+summary(pred_svm)
+RMSE(pred_svm, test_set2$PrecipitationSumInches) # Root mean squared error
+
+RMSE(pred1_svm, training_set2$PrecipitationSumInches) # Root mean squared error
+
+```
+
+
+DATA NORMALIZATION - FEATURE SCALING
+```{r}
+# load libraries
+library(caret)
+# summarize data
+summary(df)
+# calculate the pre-process parameters from the dataset
+preprocessParams <- preProcess(df, method=c("range"))
+# summarize transform parameters
+print(preprocessParams)
+# transform the dataset using the parameters
+transformed <- predict(preprocessParams, df)
+# summarize the transformed dataset
+summary(transformed)
+```
+
+
+SUPPORT VECTOR REGRESSION USING FEATURE SCALING - EXPERIMENT 3
+```{r}
+set.seed(321)
+split = sample.split(transformed$PrecipitationSumInches, SplitRatio = 0.7)
+training_set1 = subset(transformed, split == TRUE)
+test_set1 = subset(transformed, split == FALSE)
+
+
+# ~~~~~~~~~~~~~~~~~~~~  Default SVM Model using the RBF kernel ~~~~~~~~~~~~~~~~~~~~~
+library(e1071)
+svm_rbf2 <- svm(PrecipitationSumInches~., data = training_set1)
+summary(svm_rbf2)
+
+pred3 = predict (svm_rbf2, test_set1)
+pred4 = predict (svm_rbf2 , training_set1)
+library(caret)
+summary(pred3)
+RMSE(pred3, test_set1$PrecipitationSumInches) # Root mean squared error
+RMSE(pred4, training_set1$PrecipitationSumInches) # Root mean squared error
+
+```
+
+
+SUPPORT VECTOR REGRESSION (FEATURE SCALING & SELECTION) - EXPERIMENT 4
+```{r}
+library(e1071)
+svm_rbf3 <- svm(PrecipitationSumInches~ TempHighF +  TempAvgF +  TempLowF +             DewPointHighF + DewPointAvgF + DewPointLowF +             HumidityAvgPercent + HumidityLowPercent +       SeaLevelPressureAvgInches + VisibilityAvgMiles +      VisibilityLowMiles + WindHighMPH + WindAvgMPH +                WindGustMPH , data = training_set1)
+summary(svm_rbf3)
+
+pred3_svm = predict (svm_rbf3, test_set1)
+pred4_svm = predict (svm_rbf3 , training_set1)
+library(caret)
+summary(pred3_svm)
+RMSE(pred3_svm, test_set1$PrecipitationSumInches) # Root mean squared error
+
+RMSE(pred4_svm, training_set1$PrecipitationSumInches) # Root mean squared error
+
+```
+
+
+RANDOM FOREST - EXPERIMENT 1
+```{r}
+set.seed(232)
+RF <- sample(2, nrow(df), replace = T, prob = c(0.7 , 0.3))
+train2 <- df[RF == 1,]
+test2 <- df[RF == 2,]
+
+library(randomForest)
+set.seed(323)
+rf1 <- randomForest(PrecipitationSumInches~ ., data = train2 )
+#RMSE and MAE with default RF (ntree=500)
+rf.test1<-predict(rf1,newdata = test2)
+RMSE(rf.test1,test2$PrecipitationSumInches)
+
+rf.train1 <- predict(rf1,newdata = train2)
+RMSE(rf.train1 , train2$PrecipitationSumInches)
+#PLOTTING RF
+plot(rf1)
+varImpPlot(rf1)
+importance(rf1)
+```
+
+RANDOM FOREST TUNING (mtry) - EXPERIMENT 2
+```{r}
+library(caret)
+str(train2)
+tuneRF(train2[ ,-17], train2$PrecipitationSumInches,
+      stepFactor=0.5,
+      plot = TRUE,
+      ntreeTry = 400,
+      trace = TRUE,
+      improve = 0.05)
+set.seed(434)
+rf22 <- randomForest(PrecipitationSumInches~.,data = train2,
+                   ntreeTry = 500, 
+                   mtry=5,
+                   importance = TRUE,
+                   proximity = TRUE)
+print(rf22)
+#TUNED RF RMSE 
+p1 <- predict(rf22, train2)
+RMSE(p1, train2$PrecipitationSumInches)
+p2 <- predict(rf22, test2)
+RMSE(p2, test2$PrecipitationSumInches)
+
+```
+
+Number of Trees to have lowest error
+```{r}
+which.min(rf1$mse)
+``` 
+
+RANDOM FOREST MODEL WITH 62 TREES - EXPERIMENT 3
+```{r}
+set.seed(121)
+rf.62<-randomForest(PrecipitationSumInches~.,data = train2,ntree=62)
+rf.62
+#RMSE for Random Forest (ntree = 62)
+rf.test<-predict(rf.62,newdata = test2)
+RMSE(rf.test,test2$PrecipitationSumInches)
+MAE(rf.test,test2$PrecipitationSumInches)
+rf.train<-predict(rf.62,newdata = train2)
+RMSE(rf.train,train2$PrecipitationSumInches)
+
+```
+
+
+
+
