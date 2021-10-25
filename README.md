@@ -2,7 +2,7 @@
 
 ## Project Overview
 Obtained the dataset using Kaggle and implemented three rainfall prediction models, namely; Support Vector Regression, Random Forest regressor and Decision Tree Regressor.
-Performed the pre-processing, feature engineering, EDA and implemented machine learning models using R Script.
+Performed the pre-processing, feature engineering, Exploratory Data Analysis and implemention of machine learning models all using R Script.
 Hypertuned the models for better accuracy.
 All the three models with the least RMSE among all the experiments are as follows:
 Decision Tree Regressor (70:30 split): 0.2859088
