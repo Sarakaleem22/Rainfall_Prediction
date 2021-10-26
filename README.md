@@ -11,9 +11,9 @@
 
 ## Code and Resources Used
 
-R Studio
-Libraries: dplyr, DataExplorer, reshape2, ggplot2, Boruta, mlbench, caret, randomForest, e1071, caTools, rpart, rpart.plot
-[Dataset]: (https://www.kaggle.com/grubenm/austin-weather)
+* R Studio
+* Libraries: dplyr, DataExplorer, reshape2, ggplot2, Boruta, mlbench, caret, randomForest, e1071, caTools, rpart, rpart.plot
+* [Dataset](https://www.kaggle.com/grubenm/austin-weather)
 
 
 ## EDA
